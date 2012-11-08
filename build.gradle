@@ -1,0 +1,188 @@
+buildTime = new Date()
+
+usePlugin('groovy')
+usePlugin('maven')
+
+defaultTasks = ["clean","dists"]
+
+//http://snapshots.repository.codehaus.org/org/codehaus/groovy/
+//http://repository.codehaus.org/org/codehaus/groovy/http-builder/
+project_name="groovyws"
+group='org.codehaus.groovy.modules'
+version="0.5.1"
+//version="0.5.2-SNAPSHOT"
+
+type = 'jar'
+archivesBaseName=project_name
+archive_jar=project_name
+
+sourceCompatibility=1.5
+targetCompatibility=1.5
+
+manifest.mainAttributes(['Implementation-title': "groovyws", 'Implementation-Version': "$version"])
+
+cxfBaseDepsJDK6 = [
+    "commons-logging:commons-logging:1.1.1@jar", 
+    "com.sun.xml.messaging.saaj:saaj-impl:1.3.2@jar",
+    "com.sun.xml.fastinfoset:FastInfoset:1.2.7@jar",
+    "com.sun.xml.bind:jaxb-xjc:2.1.12@jar", //bug in version 2.1.8! Use 2.1.7 or 2.1.6
+    "com.sun.xml.bind:jaxb-impl:2.1.12@jar",
+    "org.apache.geronimo.specs:geronimo-ws-metadata_2.0_spec:1.1.2@jar",
+    "org.apache.geronimo.specs:geronimo-javamail_1.4_spec:1.6@jar",
+    "org.apache.geronimo.specs:geronimo-jaxws_2.1_spec:1.0@jar",
+    "org.apache.neethi:neethi:2.0.4@jar",
+    "org.apache.ws.commons.schema:XmlSchema:1.4.5@jar",
+    "wsdl4j:wsdl4j:1.6.2@jar",
+    "xml-resolver:xml-resolver:1.2@jar"
+].flatten()
+
+cxfBaseDepsJDK5 = [
+    cxfBaseDepsJDK6,
+    "javax.xml.bind:jaxb-api:2.1@jar",
+    "javax.xml.soap:saaj-api:1.3@jar",
+    "org.apache.geronimo.specs:geronimo-activation_1.1_spec:1.0.2@jar",
+    "org.apache.geronimo.specs:geronimo-annotation_1.0_spec:1.1.1@jar",
+    "org.apache.geronimo.specs:geronimo-stax-api_1.0_spec:1.0.1@jar",
+    "org.codehaus.woodstox:wstx-asl:3.2.9@jar"  //if forget jar, then download its own stax-api, and linkage error appear ... so long hours lost ...
+]
+
+cxfWsSecuritySupportDeps = [
+    "org.bouncycastle:bcprov-jdk15:1.43@jar",
+    "xalan:xalan:2.7.1@jar", 
+    "xalan:serializer:2.7.1@jar",
+    "org.apache.ws.security:wss4j:1.5.8@jar",
+    "org.apache.santuario:xmlsec:1.4.3@jar"
+]
+
+cxfAegisDeps = [
+//  "jaxen:jaxen:1.1.1@jar",
+    "org.jdom:jdom:1.1@jar"//,
+//  "net.java.dev.stax-utils:stax-utils:20060502@jar"
+]
+
+cxfJettyDeps = [
+    "org.apache.geronimo.specs:geronimo-servlet_2.5_spec:1.2@jar",
+    "org.mortbay.jetty:jetty:6.1.21@jar",
+    "org.mortbay.jetty:jetty-util:6.1.21@jar"
+]
+
+javav=System.getProperty("java.version")
+if(javav=~/^1.6/) {
+        println "Java 6"
+        cxfBaseDeps=cxfBaseDepsJDK6
+} else {
+        println "java 5"
+        cxfBaseDeps=cxfBaseDepsJDK5
+}        
+
+groovywsCxfDeps = [
+    cxfBaseDeps,
+    cxfWsSecuritySupportDeps,
+    cxfAegisDeps,
+    cxfJettyDeps
+].flatten()
+
+groovywsOtherDeps = [
+//  "jarjar:jarjar:0.2@jar",
+//  "log4j:log4j:1.2.15@jar"
+]
+
+cxf_dist = [
+    "org.apache.cxf:cxf-bundle:2.2.4@jar"
+].flatten()
+/*
+cxf_dist = [
+    "org.apache.cxf:cxf-api:2.2@jar",
+    "org.apache.cxf:cxf-common-utilities:2.2@jar",
+    "org.apache.cxf:cxf-rt-bindings-soap:2.2@jar",
+    "org.apache.cxf:cxf-rt-core:2.2@jar",
+    "org.apache.cxf:cxf-rt-databinding-aegis:2.2@jar",
+    "org.apache.cxf:cxf-rt-databinding-jaxb:2.2@jar",
+    "org.apache.cxf:cxf-rt-transports-http:2.2@jar",
+    "org.apache.cxf:cxf-rt-transports-http-jetty:2.2@jar",
+    "org.apache.cxf:cxf-rt-frontend-jaxrs:2.2@jar",
+    "org.apache.cxf:cxf-rt-frontend-jaxws:2.2@jar",
+    "org.apache.cxf:cxf-rt-frontend-simple:2.2@jar",
+    "org.apache.cxf:cxf-tools-common:2.2@jar"
+].flatten()
+*/
+
+groovy_all_dist="org.codehaus.groovy:groovy-all:1.6.5@jar"
+//groovy_all_dist="org.codehaus.groovy:groovy-all:1.6.0@jar"
+junit_dist="junit:junit:4.5@jar"
+ant_dist="org.apache.ant:ant:1.7.1@jar"
+
+signedJars=[]
+
+//Unsign a jar file, that is delete .dsa and .sf Jar's META-INF files
+def unsignJars(jarlist){
+    jarlist.each{ jarfile ->
+        ant.sequential {
+            tmpdir="tmp"
+            echo 'Unsign $jarfile ...'
+            unjar(src:jarfile, dest:tmpdir)
+            delete{
+                fileset(dir:tmpdir, includes:"META-INF/*.DSA, META-INF/*.SF, META-INF/*.RSA")
+            }
+            jar(destFile:jarfile, baseDir: tmpdir)
+            delete(dir:tmpdir)
+        }    
+    }
+}
+
+//Unsign bcprov library
+def unsignBcprov(jarfile){
+    def pattern = /bcprov/
+    if ( (jarfile =~ pattern) && !(jarfile in signedJars) ) {
+        unsignJars([jarfile])
+    }
+}
+
+//Use this build script without installing gradle
+task wrapper(type: Wrapper) {
+    gradleVersion="0.7"
+}
+
+repositories {
+    mavenCentral name:'codehaus', urls:"http://repository.codehaus.org/"
+    mavenCentral name:'ibiblio' , urls:"http://mirrors.ibiblio.org/pub/mirrors/maven2/"
+    mavenCentral name:'apache'  , urls:"http://people.apache.org/repo/m2-ibiblio-rsync-repository/"
+    mavenCentral name:'maven'   , urls:"http://repo2.maven.org/maven2/"
+}
+
+dependencies {
+    testRuntime "org.apache.ant:ant-javamail:1.7.1@jar"
+     
+    //'compile; target dependencies
+    compile cxf_dist, groovywsCxfDeps, groovy_all_dist, junit_dist, ant_dist
+
+    groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '1.6.3'
+    
+    //'standalone' target dependencies
+    //standalone cxf_dist, cxfBaseDeps, cxfWsSecuritySupportDeps, cxfAegisDeps, cxfJettyDeps
+    
+    //'all' target dependencies
+    //all cxf_dist, cxfBaseDeps, cxfWsSecuritySupportDeps, cxfAegisDeps
+
+//    deployerJars "org.apache.maven.wagon:wagon-webdav:1.0-beta-2"
+    archives "org.apache.maven.wagon:wagon-webdav:1.0-beta-2"
+}
+
+uploadArchives {
+    repositories.mavenDeployer {
+        name = 'groovywsRelease'
+        uploadDescriptor = true
+        uniqueVersion = true
+
+        repository(url:"https://dav.codehaus.org/dist/gmod/"){
+            authentication(userName:"${username}", password:"${password}")
+        }
+
+        snapshotRepository(url:"https://dav.codehaus.org/snapshots.repository/gmod/"){
+            authentication(userName:"${username}", password:"${password}")
+        }
+    }
+}
+
+createTask('release', dependsOn: ['uploadArchives']) {
+}

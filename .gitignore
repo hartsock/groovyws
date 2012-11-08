@@ -1,4 +1,8 @@
+.DS_Store
+.svn
 *.class
+*.iml
+*.ipr
 
 # Package Files #
 *.jar
